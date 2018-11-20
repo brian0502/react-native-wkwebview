@@ -67,7 +67,7 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
     WKWebViewConfiguration* config = [[WKWebViewConfiguration alloc] init];
     config.processPool = processPool;
     WKUserContentController* userController = [[WKUserContentController alloc]init];
-    [userController addScriptMessageHandler:[[WeakScriptMessageDelegate alloc] initWithDelegate:self] name:@"reactNative"];
+    [userController addScriptMessageHandler:[[WeakScriptMessageDelegate alloc] initWithDelegate:self] name:@"WebCallApp"];
     config.userContentController = userController;
     
     _webView = [[WKWebView alloc] initWithFrame:self.bounds configuration:config];
@@ -141,7 +141,7 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
   if (_messagingEnabled) {
     NSString *source = @"window.originalPostMessage = window.postMessage;"
     "window.postMessage = function(message, targetOrigin, transfer) {"
-      "window.webkit.messageHandlers.reactNative.postMessage(message);"
+      "window.webkit.messageHandlers.WebCallApp.postMessage(message);"
       "if (typeof targetOrigin !== 'undefined') {"
         "window.originalPostMessage(message, targetOrigin, transfer);"
       "}"
@@ -411,7 +411,15 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
     if (!_onProgress) {
       return;
     }
-    _onProgress(@{@"progress": [change objectForKey:NSKeyValueChangeNewKey]});
+    NSMutableDictionary<NSString *, id> *event = [[NSMutableDictionary alloc] initWithDictionary:@{
+                                                                                                   @"url": _webView.URL.absoluteString ?: @"",
+                                                                                                   @"title": _webView.title,
+                                                                                                   @"canGoBack": @(_webView.canGoBack),
+                                                                                                   @"canGoForward": @(_webView.canGoForward),
+                                                                                                   @"progress" : [change objectForKey:NSKeyValueChangeNewKey],
+                                                                                                   }];
+    
+    _onProgress(@{@"progress": event});
   }
 }
 
@@ -425,32 +433,33 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
-  if (!scrollView.scrollEnabled) {
-    scrollView.bounds = _webView.bounds;
-    return;
-  }
-  NSDictionary *event = @{
-                          @"contentOffset": @{
-                              @"x": @(scrollView.contentOffset.x),
-                              @"y": @(scrollView.contentOffset.y)
-                              },
-                          @"contentInset": @{
-                              @"top": @(scrollView.contentInset.top),
-                              @"left": @(scrollView.contentInset.left),
-                              @"bottom": @(scrollView.contentInset.bottom),
-                              @"right": @(scrollView.contentInset.right)
-                              },
-                          @"contentSize": @{
-                              @"width": @(scrollView.contentSize.width),
-                              @"height": @(scrollView.contentSize.height)
-                              },
-                          @"layoutMeasurement": @{
-                              @"width": @(scrollView.frame.size.width),
-                              @"height": @(scrollView.frame.size.height)
-                              },
-                          @"zoomScale": @(scrollView.zoomScale ?: 1),
-                          };
-  _onScroll(event);
+  return;
+//  if (!scrollView.scrollEnabled) {
+//    scrollView.bounds = _webView.bounds;
+//    return;
+//  }
+//  NSDictionary *event = @{
+//                          @"contentOffset": @{
+//                              @"x": @(scrollView.contentOffset.x),
+//                              @"y": @(scrollView.contentOffset.y)
+//                              },
+//                          @"contentInset": @{
+//                              @"top": @(scrollView.contentInset.top),
+//                              @"left": @(scrollView.contentInset.left),
+//                              @"bottom": @(scrollView.contentInset.bottom),
+//                              @"right": @(scrollView.contentInset.right)
+//                              },
+//                          @"contentSize": @{
+//                              @"width": @(scrollView.contentSize.width),
+//                              @"height": @(scrollView.contentSize.height)
+//                              },
+//                          @"layoutMeasurement": @{
+//                              @"width": @(scrollView.frame.size.width),
+//                              @"height": @(scrollView.frame.size.height)
+//                              },
+//                          @"zoomScale": @(scrollView.zoomScale ?: 1),
+//                          };
+//  _onScroll(event);
 }
 
 #pragma mark - WKNavigationDelegate methods
@@ -485,6 +494,7 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
     NSMutableDictionary<NSString *, id> *event = [self baseEvent];
     [event addEntriesFromDictionary: @{
                                        @"url": (request.URL).absoluteString,
+                                       @"mainDocumentUrl": (request.mainDocumentURL).absoluteString,
                                        @"navigationType": @(navigationAction.navigationType)
                                        }];
     if (![self.delegate webView:self
