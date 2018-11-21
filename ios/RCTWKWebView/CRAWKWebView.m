@@ -14,6 +14,10 @@
 
 #import <objc/runtime.h>
 
+#import "TrustKit/TrustKit.h"
+#import "TrustKit/TSKPinningValidator.h"
+#import "TrustKit/TSKPinningValidatorCallback.h"
+
 // runtime trick to remove WKWebView keyboard default toolbar
 // see: http://stackoverflow.com/questions/19033292/ios-7-uiwebview-keyboard-issue/19042279#19042279
 @interface _SwizzleHelperWK : NSObject @end
@@ -464,12 +468,41 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
 
 #pragma mark - WKNavigationDelegate methods
 
-#if DEBUG
 - (void)webView:(WKWebView *)webView didReceiveAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition, NSURLCredential * _Nullable))completionHandler {
-  NSURLCredential * credential = [[NSURLCredential alloc] initWithTrust:[challenge protectionSpace].serverTrust];
-  completionHandler(NSURLSessionAuthChallengeUseCredential, credential);
+  //  NSURLCredential * credential = [[NSURLCredential alloc] initWithTrust:[challenge protectionSpace].serverTrust];
+  //  completionHandler(NSURLSessionAuthChallengeUseCredential, credential);
+  TSKPinningValidator *pinningValidator = [[TrustKit sharedInstance] pinningValidator];
+  
+  BOOL result = [pinningValidator handleChallenge:challenge completionHandler:^(NSURLSessionAuthChallengeDisposition disposition, NSURLCredential *credential) {
+    if(disposition == NSURLSessionAuthChallengeUseCredential){
+      NSLog(@"ssl completionHandler: NSURLSessionAuthChallengeUseCredential");
+    }
+    
+    if(disposition == NSURLSessionAuthChallengePerformDefaultHandling){
+      NSLog(@"ssl completionHandler: NSURLSessionAuthChallengePerformDefaultHandling");
+    }
+    
+    if(disposition == NSURLSessionAuthChallengeCancelAuthenticationChallenge){
+      NSLog(@"ssl completionHandler: NSURLSessionAuthChallengeCancelAuthenticationChallenge");
+      //[self callback_webView_mySSLcheckMsg:[NSString stringWithFormat:@"憑證錯誤，連線將取消"]];
+      NSMutableDictionary<NSString *, id> *event = [self baseEvent];
+      [event addEntriesFromDictionary:@{
+                                        @"domain": @"pchome.com.tw",
+                                        @"code": @(NSURLErrorServerCertificateUntrusted),
+                                        @"description": @"網路中斷，請檢查網路(P01)",
+                                        }];
+      _onLoadingError(event);
+    }
+    
+    completionHandler(disposition, credential);
+    
+  }];
+  
+  if (result) {
+  }else{
+    completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, nil);
+  }
 }
-#endif
 
 - (void)webView:(__unused WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler
 {
