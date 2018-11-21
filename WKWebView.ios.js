@@ -523,7 +523,7 @@ class WKWebView extends React.Component {
 
   _onNavigationResponse = (event: Event) => {
     const { onNavigationResponse } = this.props;
-    onNavigationResponse && onNavigationResponse(event)
+    onNavigationResponse && onNavigationResponse(event.nativeEvent);
   }
 }
 
